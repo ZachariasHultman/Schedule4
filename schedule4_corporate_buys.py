@@ -50,7 +50,7 @@ import random
 
 EDGAR_ARCHIVES = "https://www.sec.gov/Archives/"
 DAILY_FORM_INDEX = (
-    "https://www.sec.gov/Archives/edgar/daily-index/{year}/QTR{q}/schedule.{ymd}.idx"
+    "https://www.sec.gov/Archives/edgar/daily-index/{year}/QTR{q}/form.{ymd}.idx"
 )
 
 # SEC requires a real User-Agent with contact info
@@ -88,7 +88,7 @@ def fetch_daily_schedule_index(
     day: dt.date, session: requests.Session
 ) -> Optional[str]:
     ymd = day.strftime("%Y%m%d")
-    url = DAILY_FORM_INDEX.scheduleat(year=day.year, q=quarter_of(day), ymd=ymd)
+    url = DAILY_FORM_INDEX.format(year=day.year, q=quarter_of(day), ymd=ymd)
     r = session.get(url, headers=HEADERS, timeout=30)
     if r.status_code != 200:
         return None
@@ -142,7 +142,7 @@ def xml_candidates_from_txt(txt_path: str) -> Tuple[str, List[str]]:
     acc = txt_path.rsplit("/", 1)[1].replace(".txt", "")
     dir_url = urljoin(EDGAR_ARCHIVES, base_dir + acc + "/")
     index_url = dir_url + f"{acc}-index.htm"
-    return index_url, [dir_url + "schedule4.xml", dir_url + "primary_doc.xml"]
+    return index_url, [dir_url + "form4.xml", dir_url + "primary_doc.xml"]
 
 
 def fetch_xml(url: str, session: requests.Session) -> Optional[bytes]:
@@ -805,11 +805,11 @@ def main():
 
     # Date resolution
     if args.date:
-        start = end = dt.date.fromisoscheduleat(args.date)
+        start = end = dt.date.fromisoformat(args.date)
     else:
         if args.start and args.end:
-            start = dt.date.fromisoscheduleat(args.start)
-            end = dt.date.fromisoscheduleat(args.end)
+            start = dt.date.fromisoformat(args.start)
+            end = dt.date.fromisoformat(args.end)
         else:
             # default: yesterday (US/Eastern ambiguity ignored)
             end = dt.date.today() - dt.timedelta(days=1)
