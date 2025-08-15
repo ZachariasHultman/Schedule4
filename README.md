@@ -1,10 +1,10 @@
 # Schedule4 – Corporate & Insider Buys Tracker
 
-Python tooling for parsing **SEC Form 4** filings from EDGAR, filtering for **corporate acquisitions** (≥10% owner) and detecting **coordinated buys**.
+Python tooling for parsing **SEC Schedule 4** filings from EDGAR, filtering for **corporate acquisitions** (≥10% owner) and detecting **coordinated buys**.
 
 ## Features
 - Downloads and parses SEC EDGAR daily index files.
-- Filters Form 4 filings where the **reporting person** is a corporation or large shareholder.
+- Filters Schedule 4 filings where the **reporting person** is a corporation or large shareholder.
 - Extracts:
   - Buyer name
   - Issuer (company bought)
@@ -21,8 +21,8 @@ Python tooling for parsing **SEC Form 4** filings from EDGAR, filtering for **co
 
 ## Example Usage
 ```bash
-# Pull Form 4 data for a date range
-python form4_corporate_buys.py \
+# Pull Schedule 4 data for a date range
+python schedule4_corporate_buys.py \
     --start 2025-08-11 \
     --end 2025-08-12 \
     --csv out.csv \
@@ -31,4 +31,4 @@ python form4_corporate_buys.py \
     --print_passed
 
 # Flag coordinated buys in the output CSV
-python detect_coordinated_buys.py
+python schedule4_coordinated_buys.py
