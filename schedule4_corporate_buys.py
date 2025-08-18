@@ -83,6 +83,28 @@ def iter_dates(start: dt.date, end: dt.date) -> Iterable[dt.date]:
         d += dt.timedelta(days=1)
 
 
+# --- add this helper near top-level ---
+def recent_available_days(
+    n: int, session: requests.Session, max_lookback: int = 14
+) -> list[dt.date]:
+    """
+    Walk backward from today and collect the latest n dates that have a
+    daily 'form.YYYYMMDD.idx' available (HTTP 200). Skips weekends/holidays/early days.
+    """
+    found: list[dt.date] = []
+    day = dt.date.today()
+    attempts = 0
+    while len(found) < n and attempts < max_lookback:
+        idx_text = fetch_daily_schedule_index(day, session)
+        if idx_text:
+            found.append(day)
+        else:
+            print(f"[WARN] No index for {day}")
+        day -= dt.timedelta(days=1)
+        attempts += 1
+    return sorted(found)  # oldest→newest
+
+
 # ---- Fetch daily index (gzip-safe) ----
 def fetch_daily_schedule_index(
     day: dt.date, session: requests.Session
@@ -769,59 +791,36 @@ def make_session(user_agent: str) -> requests.Session:
     return s
 
 
-# ---- Main ----
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--date", default=None, help="Single date YYYY-MM-DD")
-    ap.add_argument("--start", default=None, help="Start date YYYY-MM-DD")
-    ap.add_argument("--end", default=None, help="End date YYYY-MM-DD")
-    ap.add_argument("--csv", required=True, help="Output CSV path")
     ap.add_argument(
-        "--user_agent", default=None, help="Custom SEC User-Agent with contact info"
+        "--csv", required=True, help="Output CSV path (overwritten each run)"
     )
     ap.add_argument(
-        "--sleep", type=float, default=0.3, help="Delay between HTTP requests (seconds)"
+        "--user_agent", default=None, help="SEC User-Agent with contact info"
     )
+    ap.add_argument("--sleep", type=float, default=0.3)
+    ap.add_argument("--include_codes", default="P,C")
+    ap.add_argument("--no_tenpct_filter", action="store_true")
+    ap.add_argument("--keep_otc", action="store_true")
+    ap.add_argument("--print_passed", action="store_true")
     ap.add_argument(
-        "--include_codes",
-        default="P,C",
-        help="Comma list of transaction codes to include",
-    )
-    ap.add_argument(
-        "--no_tenpct_filter",
-        action="store_true",
-        help="Include all filers (not just 10%% owners)",
-    )
-    ap.add_argument("--keep_otc", action="store_true", help="Keep OTC/foreign symbols")
-    ap.add_argument(
-        "--print_passed",
-        action="store_true",
-        help="Print one line per kept row for live feedback",
+        "--days",
+        type=int,
+        default=3,
+        help="How many latest available index days to fetch",
     )
     args = ap.parse_args()
 
     if args.user_agent:
         HEADERS["User-Agent"] = args.user_agent
 
-    # Date resolution
-    if args.date:
-        start = end = dt.date.fromisoformat(args.date)
-    else:
-        if args.start and args.end:
-            start = dt.date.fromisoformat(args.start)
-            end = dt.date.fromisoformat(args.end)
-        else:
-            # default: yesterday (US/Eastern ambiguity ignored)
-            end = dt.date.today() - dt.timedelta(days=1)
-            start = end
-
-    allowed_codes = set(
+    allowed_codes = {
         c.strip().upper() for c in args.include_codes.split(",") if c.strip()
-    )
+    }
     tenpct_required = not args.no_tenpct_filter
     drop_otc = not args.keep_otc
 
-    # CSV
     fieldnames = [
         "buyer",
         "issuer",
@@ -836,18 +835,22 @@ def main():
         "accession_url",
         "xml_url",
     ]
-    try:
-        with open(args.csv, "x", newline="", encoding="utf-8") as f:
-            csv.DictWriter(f, fieldnames=fieldnames).writeheader()
-    except FileExistsError:
-        pass
 
     s = make_session(HEADERS["User-Agent"])
-    total_kept = 0
-    total_raw = 0
-    with open(args.csv, "a", newline="", encoding="utf-8") as f:
+
+    # find the latest N available index days (skips weekends/holidays/early mornings)
+    days = recent_available_days(args.days, s)
+    if not days:
+        print("No available daily index found in lookback window.")
+        with open(args.csv, "w", newline="", encoding="utf-8") as f:
+            csv.DictWriter(f, fieldnames=fieldnames).writeheader()
+        return
+
+    total_kept = total_raw = 0
+    with open(args.csv, "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=fieldnames)
-        for day in iter_dates(start, end):
+        w.writeheader()
+        for day in days:
             kept, raw = process_date(
                 day,
                 w,

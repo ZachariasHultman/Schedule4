@@ -22,6 +22,7 @@ dist/
 
 # Data outputs
 *.csv
+*.zip
 
 # Jupyter checkpoints
 .ipynb_checkpoints/
