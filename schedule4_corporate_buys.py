@@ -807,7 +807,7 @@ def main():
     ap.add_argument(
         "--days",
         type=int,
-        default=3,
+        default=1,
         help="How many latest available index days to fetch",
     )
     args = ap.parse_args()

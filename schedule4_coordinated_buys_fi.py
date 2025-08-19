@@ -98,7 +98,8 @@ def choose_date_column(df: pd.DataFrame, by: str) -> Tuple[str, pd.Series]:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--in", dest="in_path", required=True)
-    ap.add_argument("--out", dest="out_path", required=True)
+    ap.add_argument("--out", dest="out_path", default=None,
+                    help="If omitted, updates --in in-place.")
     ap.add_argument(
         "--by", choices=["publication", "transaction"], default="publication"
     )
@@ -117,9 +118,10 @@ def main():
     )
     args = ap.parse_args()
 
+    out_path = args.out_path or args.in_path
     df = pd.read_csv(args.in_path)
     if df.empty:
-        df.to_csv(args.out_path, index=False)
+        df.to_csv(out_path, index=False)
         print("No rows.")
         return
 
@@ -244,8 +246,8 @@ def main():
         inplace=True,
         errors="ignore",
     )
-    df.to_csv(args.out_path, index=False)
-    print(f"Done. Coordinated rows: {int(df['coordinated'].sum())}. -> {args.out_path}")
+    df.to_csv(out_path, index=False)
+    print(f"Done. Coordinated rows: {int(df['coordinated'].sum())}. -> {out_path}")
 
 
 if __name__ == "__main__":

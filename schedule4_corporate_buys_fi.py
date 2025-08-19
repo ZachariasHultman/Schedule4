@@ -191,7 +191,7 @@ def main():
     ap.add_argument(
         "--days",
         type=int,
-        default=3,
+        default=1,
         help="Antal senaste publiceringsdagar (default 3)",
     )
     ap.add_argument(
