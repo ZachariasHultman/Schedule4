@@ -147,7 +147,13 @@ def _fmt_us_rows(rows: list[dict]) -> str:
         span = grp[0].get("coord_span_abs", "")
         span_str = f"  price span ${float(span):.4f}" if span else ""
         lines.append(f"  {ticker:<6}  {issuer:<35}  filed {fdate}  ({n_buyers} buyers{span_str})")
+        seen_buyers: set[str] = set()
+        url = ""
         for r in grp:
+            buyer = r.get("buyer", "")
+            if buyer in seen_buyers:
+                continue
+            seen_buyers.add(buyer)
             price = r.get("price") or r.get("price_avg_from_note", "")
             shares = r.get("shares", "")
             try:
@@ -158,8 +164,8 @@ def _fmt_us_rows(rows: list[dict]) -> str:
                 shares_str = f"{int(float(shares)):,} sh" if shares else ""
             except (ValueError, TypeError):
                 shares_str = str(shares)
-            url = r.get("accession_url", "")
-            lines.append(f"    → {r.get('buyer',''):<35}  {price_str:<12}  {shares_str}")
+            url = r.get("accession_url", "") or url
+            lines.append(f"    → {buyer:<35}  {price_str:<12}  {shares_str}")
         if url:
             lines.append(f"    SEC: {url}")
         lines.append("")
@@ -185,8 +191,12 @@ def _fmt_fi_rows(rows: list[dict]) -> str:
         span = grp[0].get("coord_span_abs", "")
         span_str = f"  price span {float(span):.4f} {currency}" if span else ""
         lines.append(f"  {instrument:<10}  {issuer:<35}  pub {pub}  ({n_buyers} buyers{span_str})")
+        seen_buyers: set[str] = set()
         for r in grp:
             buyer = r.get("buyer", r.get("PDMR", ""))
+            if buyer in seen_buyers:
+                continue
+            seen_buyers.add(buyer)
             price = r.get("price", r.get("Price", ""))
             volume = r.get("volume", r.get("Volume", ""))
             try:
