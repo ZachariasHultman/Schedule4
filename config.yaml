@@ -7,7 +7,7 @@ scraper:
 
 email:
   to: "zacharias.hultman@gmail.com"
-  from: "zacharias.hultman@gmail.com"
+  from: "brodernah@gmail.com"
   smtp_host: "smtp.gmail.com"
   smtp_port: 587
   send_always: false       # true = daily digest even when nothing new
