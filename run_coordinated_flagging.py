@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import argparse, subprocess, sys, shlex, os, shutil
+import argparse, subprocess, sys, shlex
 
 def main():
     ap = argparse.ArgumentParser(description="Run both coordinated-flagging scripts (US + FI), writing in place by default.")

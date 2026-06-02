@@ -28,6 +28,7 @@ COLMAP = {
     "emittent": "issuer",
     "person discharging managerial responsibilities": "buyer",
     "person i ledande ställning": "buyer",
+    "pdmr": "buyer",
     "closely associated": "associated",
     "närstående": "associated",
     "nature of transaction": "nature",

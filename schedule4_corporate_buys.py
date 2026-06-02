@@ -562,10 +562,6 @@ def process_date(
             continue
 
         header, txs = parse_schedule4_xml(xml_bytes)
-        for t in txs:
-            print(
-                f"DEBUG {day} {header.get('issuerTradingSymbol')} <- {t['rptOwnerName']} [{t['transactionCode']}]"
-            )
         raw += len(txs)
         filtered = filter_transactions(
             header, txs, allowed_codes, tenpct_required, drop_otc
@@ -760,8 +756,8 @@ def process_date_async(
             tasks = [asyncio.create_task(worker(f)) for f in filings]
             await asyncio.gather(*tasks)
 
+            await q.put(None)
             if print_passed:
-                await q.put(None)
                 await q.join()
             await printer_task
 

@@ -1,0 +1,18 @@
+schedule: "30 7 * * 1-5"   # Mon–Fri 07:30 UTC (after FI publishes; before US pre-market)
+
+scraper:
+  days: 1                  # latest non-holiday trading days to fetch per source
+  user_agent: "Schedule4 Insider Monitor (zacharias.hultman@gmail.com)"
+  include_codes: "P,C"     # P=open-market purchase, C=conversion (A=grant optional)
+
+email:
+  to: "zacharias.hultman@gmail.com"
+  from: "zacharias.hultman@gmail.com"
+  smtp_host: "smtp.gmail.com"
+  smtp_port: 587
+  send_always: false       # true = daily digest even when nothing new
+
+paths:
+  us_csv: "out.csv"
+  fi_csv: "out_fi.csv"
+  state_file: ".state.json"

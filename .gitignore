@@ -17,8 +17,15 @@ build/
 dist/
 *.egg-info/
 
+# Secrets
+.env
+
+# Run state (tracks coordinated buys across runs for email diffing)
+.state.json
+
 # Logs
 *.log
+logs/
 
 # Data outputs
 *.csv

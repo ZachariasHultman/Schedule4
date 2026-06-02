@@ -1,0 +1,15 @@
+# Schedule4 — daily insider trade monitor
+# Configured in config.yaml. Matches schedule: "30 7 * * 1-5"
+#
+# Setup on the Pi (one-time):
+#   git clone <repo> /home/pi/Schedule4
+#   cd /home/pi/Schedule4
+#   python3 -m venv .venv
+#   .venv/bin/pip install -r requirements.txt
+#   cp .env.example .env
+#   nano .env                # fill in SMTP_USER and SMTP_PASSWORD
+#   mkdir -p logs
+#
+# Add alongside your existing crontab entries (crontab -e):
+
+30 7 * * 1-5 cd /home/pi/Schedule4 && .venv/bin/python daily_run.py >> logs/daily.log 2>&1

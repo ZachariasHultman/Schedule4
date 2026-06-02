@@ -3,7 +3,7 @@
 # schedule4_corporate_buys.py -> US out.csv
 # schedule4_corporate_buys_fi.py -> FI out_fi.csv
 
-import argparse, subprocess, sys, shlex, os
+import argparse, subprocess, sys, shlex
 
 def main():
     ap = argparse.ArgumentParser(description="Run both scrapers (US SEC + FI PDMR).")
