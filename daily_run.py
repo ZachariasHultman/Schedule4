@@ -366,8 +366,23 @@ def main():
     else:
         logger.info("Nothing new — no email sent")
 
-    # 5) Persist state (accumulate so old events aren't re-reported)
-    save_state(state_file, prev["us"] | curr_us_keys, prev["fi"] | curr_fi_keys)
+    # 5) Persist state — keep only last 30 days so the file doesn't grow forever
+    from datetime import datetime, timedelta
+    cutoff = (datetime.today() - timedelta(days=30)).strftime("%Y-%m-%d")
+
+    def _prune(keys: set) -> set:
+        result = set()
+        for k in keys:
+            date_part = k[1] if len(k) > 1 else ""
+            if date_part >= cutoff:
+                result.add(k)
+        return result
+
+    save_state(
+        state_file,
+        _prune(prev["us"] | curr_us_keys),
+        _prune(prev["fi"] | curr_fi_keys),
+    )
     logger.info("State saved")
 
 
