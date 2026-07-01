@@ -25,6 +25,8 @@ from pathlib import Path
 
 import yaml
 
+from schedule4_politician_buys import fetch_trades as fetch_politician_trades
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s: %(message)s",
@@ -98,6 +100,10 @@ def _key_us(row: dict) -> tuple:
     )
 
 
+def _key_pol(row: dict) -> tuple:
+    return (row.get("tx_id") or "", row.get("tx_date") or "")
+
+
 def _key_fi(row: dict) -> tuple:
     pub = (row.get("pub_date") or row.get("Publication date", "")).strip()
     buyer = (row.get("buyer") or row.get("PDMR", "")).strip()
@@ -109,21 +115,23 @@ def _key_fi(row: dict) -> tuple:
 
 def load_state(state_file: Path) -> dict:
     if not state_file.exists():
-        return {"us": set(), "fi": set()}
+        return {"us": set(), "fi": set(), "pol": set()}
     with open(state_file) as f:
         raw = json.load(f)
     return {
-        "us": {tuple(t) for t in raw.get("us", [])},
-        "fi": {tuple(t) for t in raw.get("fi", [])},
+        "us":  {tuple(t) for t in raw.get("us", [])},
+        "fi":  {tuple(t) for t in raw.get("fi", [])},
+        "pol": {tuple(t) for t in raw.get("pol", [])},
     }
 
 
-def save_state(state_file: Path, us_keys: set, fi_keys: set):
+def save_state(state_file: Path, us_keys: set, fi_keys: set, pol_keys: set):
     with open(state_file, "w") as f:
         json.dump(
             {
-                "us": sorted(list(t) for t in us_keys),
-                "fi": sorted(list(t) for t in fi_keys),
+                "us":  sorted(list(t) for t in us_keys),
+                "fi":  sorted(list(t) for t in fi_keys),
+                "pol": sorted(list(t) for t in pol_keys),
             },
             f, indent=2,
         )
@@ -212,42 +220,70 @@ def _fmt_fi_rows(rows: list[dict]) -> str:
     return "\n".join(lines)
 
 
+def _fmt_pol_rows(rows: list[dict]) -> str:
+    if not rows:
+        return "  (none)\n"
+    buys  = [r for r in rows if r.get("tx_type") == "buy"]
+    sells = [r for r in rows if r.get("tx_type") != "buy"]
+    lines = []
+    for label, group in (("Buys", buys), ("Sells", sells)):
+        if not group:
+            continue
+        lines.append(f"  {label}:")
+        for r in sorted(group, key=lambda x: x.get("tx_date", ""), reverse=True):
+            pol   = r.get("politician", "")
+            tag   = f"{r.get('party','')}-{r.get('chamber','')}/{r.get('state','')}"
+            tkr   = r.get("ticker", "")
+            amt   = r.get("amount", "")
+            tdate = r.get("tx_date", "")
+            ext   = r.get("tx_type_ext", "")
+            lines.append(f"    {tkr:<6}  {pol:<25}  {tag:<10}  {amt:<20}  {tdate}  {ext}")
+        lines.append("")
+    return "\n".join(lines)
+
+
 def build_email(
-    new_us: list[dict], new_fi: list[dict],
-    all_us: list[dict], all_fi: list[dict],
+    new_us: list[dict], new_fi: list[dict], new_pol: list[dict],
+    all_us: list[dict], all_fi: list[dict], all_pol: list[dict],
     scraper_status: dict,
 ) -> tuple[str, str]:
     today = date.today().isoformat()
-    n_new = len({_key_us(r) for r in new_us}) + len({_key_fi(r) for r in new_fi})
+    n_new_insider = len({_key_us(r) for r in new_us}) + len({_key_fi(r) for r in new_fi})
+    n_new_pol = len({_key_pol(r) for r in new_pol})
+    n_new = n_new_insider + n_new_pol
 
     if n_new:
-        subject = f"Schedule4 [{today}]: {n_new} new coordinated buy event(s)"
+        subject = f"Schedule4 [{today}]: {n_new} new event(s)"
     else:
-        subject = f"Schedule4 [{today}]: no new coordinated buys"
+        subject = f"Schedule4 [{today}]: nothing new"
 
     sep = "=" * 55
     thin = "-" * 55
     lines: list[str] = []
 
-    lines += [f"Schedule4 — Coordinated Insider Buys — {today}", sep, ""]
+    lines += [f"Schedule4 — Insider & Politician Trades — {today}", sep, ""]
 
     # STATUS
     lines += ["STATUS", ""]
     for name, status in scraper_status.items():
         icon = "✓" if status.startswith("ok") or status.startswith("✓") else "✗"
-        lines.append(f"  {name:<16} {icon}  {status}")
+        lines.append(f"  {name:<18} {icon}  {status}")
     lines += ["", thin, ""]
 
     # NEW SINCE LAST RUN
     new_us_keys = {_key_us(r) for r in new_us}
     new_fi_keys = {_key_fi(r) for r in new_fi}
+    new_pol_keys = {_key_pol(r) for r in new_pol}
     lines += [f"NEW SINCE LAST RUN  ({n_new} event(s))", ""]
 
-    lines.append(f"US — {len(new_us_keys)} new coordinated cluster(s):")
+    lines.append(f"US insider — {len(new_us_keys)} new coordinated cluster(s):")
     lines.append(_fmt_us_rows(new_us))
 
-    lines.append(f"FI — {len(new_fi_keys)} new coordinated cluster(s):")
+    lines.append(f"FI insider — {len(new_fi_keys)} new coordinated cluster(s):")
     lines.append(_fmt_fi_rows(new_fi))
+
+    lines.append(f"Politicians — {n_new_pol} new trade(s):")
+    lines.append(_fmt_pol_rows(new_pol))
 
     lines += [thin, ""]
 
@@ -256,13 +292,16 @@ def build_email(
     all_fi_keys = {_key_fi(r) for r in all_fi}
     n_all_us = len({(r.get("issuer"), r.get("filing_date")) for r in all_us})
     n_all_fi = len({(r.get("issuer", r.get("Issuer")), r.get("pub_date", r.get("Publication date"))) for r in all_fi})
-    lines += [f"ALL COORDINATED BUYS TODAY", ""]
+    lines += ["ALL TRADES IN WINDOW", ""]
 
-    lines.append(f"US — {n_all_us} issuer-date cluster(s), {len(all_us_keys)} buyer row(s):")
+    lines.append(f"US insider — {n_all_us} issuer-date cluster(s), {len(all_us_keys)} buyer row(s):")
     lines.append(_fmt_us_rows(all_us))
 
-    lines.append(f"FI — {n_all_fi} issuer-date cluster(s), {len(all_fi_keys)} buyer row(s):")
+    lines.append(f"FI insider — {n_all_fi} issuer-date cluster(s), {len(all_fi_keys)} buyer row(s):")
     lines.append(_fmt_fi_rows(all_fi))
+
+    lines.append(f"Politicians — {len(all_pol)} trade(s) in window:")
+    lines.append(_fmt_pol_rows(all_pol))
 
     lines += [thin, f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}"]
 
@@ -311,8 +350,9 @@ def main():
     user_agent = scraper_cfg.get("user_agent")
     include_codes = scraper_cfg.get("include_codes", "P,C")
     send_always = cfg.get("email", {}).get("send_always", False)
+    pol_days = int(cfg.get("politician", {}).get("days", 3))
 
-    # 1) Scrape
+    # 1) Scrape insiders
     scrape_cmd = [
         sys.executable, "run_scrapers.py",
         "--us_csv", us_csv,
@@ -332,32 +372,43 @@ def main():
         "--fi_in", fi_csv,
     ], "coordinated flagging")
 
-    # 3) Load results and compare with previous state
+    # 3) Fetch politician trades in memory (no CSV)
+    logger.info("Fetching politician trades (last %d days)", pol_days)
+    all_pol = fetch_politician_trades(days=pol_days, user_agent=user_agent)
+    pol_status = f"ok — {len(all_pol)} trade(s) fetched" if all_pol is not None else "failed"
+
+    # 4) Load results and compare with previous state
     prev = load_state(state_file)
     all_us = _read_coordinated_us(us_csv)
     all_fi = _read_coordinated_fi(fi_csv)
 
     curr_us_keys = {_key_us(r) for r in all_us}
     curr_fi_keys = {_key_fi(r) for r in all_fi}
-    new_us = [r for r in all_us if _key_us(r) not in prev["us"]]
-    new_fi = [r for r in all_fi if _key_fi(r) not in prev["fi"]]
+    curr_pol_keys = {_key_pol(r) for r in all_pol}
+
+    new_us  = [r for r in all_us  if _key_us(r)  not in prev["us"]]
+    new_fi  = [r for r in all_fi  if _key_fi(r)  not in prev["fi"]]
+    new_pol = [r for r in all_pol if _key_pol(r) not in prev["pol"]]
 
     n_new_clusters_us = len({_key_us(r) for r in new_us})
     n_new_clusters_fi = len({_key_fi(r) for r in new_fi})
 
     scraper_status = {
-        "US scraper": f"ok — {len(all_us)} coordinated row(s) found",
-        "FI scraper": f"ok — {len(all_fi)} coordinated row(s) found",
-        "new US":     f"{n_new_clusters_us} new cluster(s) vs last run",
-        "new FI":     f"{n_new_clusters_fi} new cluster(s) vs last run",
+        "US insider":    f"ok — {len(all_us)} coordinated row(s) found",
+        "FI insider":    f"ok — {len(all_fi)} coordinated row(s) found",
+        "new US":        f"{n_new_clusters_us} new cluster(s) vs last run",
+        "new FI":        f"{n_new_clusters_fi} new cluster(s) vs last run",
+        "Politicians":   pol_status,
+        "new pol":       f"{len(new_pol)} new trade(s) vs last run",
     }
 
     logger.info("US coordinated today: %d  (new: %d clusters)", len(all_us), n_new_clusters_us)
     logger.info("FI coordinated today: %d  (new: %d clusters)", len(all_fi), n_new_clusters_fi)
+    logger.info("Politician trades today: %d  (new: %d)", len(all_pol), len(new_pol))
 
-    # 4) Email
-    if new_us or new_fi or send_always:
-        subject, body = build_email(new_us, new_fi, all_us, all_fi, scraper_status)
+    # 5) Email
+    if new_us or new_fi or new_pol or send_always:
+        subject, body = build_email(new_us, new_fi, new_pol, all_us, all_fi, all_pol, scraper_status)
         logger.info("Sending: %s", subject)
         try:
             send_email(cfg, subject, body)
@@ -366,7 +417,7 @@ def main():
     else:
         logger.info("Nothing new — no email sent")
 
-    # 5) Persist state — keep only last 30 days so the file doesn't grow forever
+    # 6) Persist state — keep only last 30 days so the file doesn't grow forever
     from datetime import datetime, timedelta
     cutoff = (datetime.today() - timedelta(days=30)).strftime("%Y-%m-%d")
 
@@ -382,6 +433,7 @@ def main():
         state_file,
         _prune(prev["us"] | curr_us_keys),
         _prune(prev["fi"] | curr_fi_keys),
+        _prune(prev["pol"] | curr_pol_keys),
     )
     logger.info("State saved")
 

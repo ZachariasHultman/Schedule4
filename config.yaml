@@ -12,6 +12,9 @@ email:
   smtp_port: 587
   send_always: false       # true = daily digest even when nothing new
 
+politician:
+  days: 3                   # trading days lookback for Capitol Trades API
+
 paths:
   us_csv: "out.csv"
   fi_csv: "out_fi.csv"

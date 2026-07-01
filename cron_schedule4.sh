@@ -14,12 +14,13 @@ cd "$SCRIPT_DIR"
 # shellcheck source=/dev/null
 [ -f "$SCRIPT_DIR/.env" ] && set -a && source "$SCRIPT_DIR/.env" && set +a
 
-echo "=== $(date) ==="
-
-# Keep only the last 1000 lines (~2 weeks of runs)
 LOG_FILE="$SCRIPT_DIR/logs/cron.log"
-[ -f "$LOG_FILE" ] && tail -n 1000 "$LOG_FILE" > "$LOG_FILE.tmp" && mv "$LOG_FILE.tmp" "$LOG_FILE"
+
+echo "=== $(date) ==="
 
 flock -n /tmp/schedule4.lock timeout 5400 .venv/bin/python daily_run.py
 
 echo "=== Done ==="
+
+# Trim after all output is flushed (~2 weeks of Mon-Fri runs)
+[ -f "$LOG_FILE" ] && tail -n 1000 "$LOG_FILE" > "$LOG_FILE.tmp" && mv "$LOG_FILE.tmp" "$LOG_FILE"
