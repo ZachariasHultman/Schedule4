@@ -13,7 +13,7 @@ email:
   send_always: false       # true = daily digest even when nothing new
 
 politician:
-  days: 3                   # trading days lookback for Capitol Trades API
+  days: 3                   # disclosure-date lookback; 3 so Monday covers Friday filings (state dedup prevents repeats)
 
 paths:
   us_csv: "out.csv"
